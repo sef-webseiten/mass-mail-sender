@@ -1,3 +1,4 @@
 node_modules
 emails.xlsx
 mail.txt
+.env

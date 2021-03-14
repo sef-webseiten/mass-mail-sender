@@ -2,8 +2,9 @@ import { program } from 'commander/esm.mjs';
 import fs from "fs";
 import readline from "readline";
 import Confirm from 'prompt-confirm';
-import {parseMail} from "./mail-parser.js"
+import { parseMail } from "./mail-parser.js"
 import { getContent, getWorksheets, mapRecords } from './excel-parser.js';
+import { closeConnection, sendMail } from './mail-client.js';
 
 program.requiredOption("-s, --sheet <path>", "Excel sheet input path");
 program.requiredOption("-m, --mail <path>", "Mail input path");
@@ -35,5 +36,36 @@ let mail = parseMail(mailPath);
     const prompt = await (new Confirm('Proceed?')).run();
 
     if (!prompt) return console.info("Quitting")
+
+    for (const record of records) {
+
+        console.time(`Sending mail to ${record.email}`);
+
+        // create a copy of the mail template
+        const customMail = JSON.parse(JSON.stringify(mail));
+
+        // replace custom properties in subject
+        for (const property in record)
+            customMail.subject = customMail.subject.split(`[${property}]`).join(record[property]);
+        
+        // replace custom properties in content
+        for (const property in record)
+            customMail.content = customMail.content.split(`[${property}]`).join(record[property]);
+        
+        try {
+            await sendMail(record.email, customMail)
+        } catch (e) {
+            console.log(`Error sending mail to ${record.email}`)
+         }
+
+        console.timeEnd(`Sending mail to ${record.email}`)
+
+    }
+
+    console.info("Finished all emails");
+
+    closeConnection();
+
+    console.info("Closing connection - good bye! ")
 
 })();
