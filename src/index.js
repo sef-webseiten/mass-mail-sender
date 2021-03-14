@@ -6,22 +6,30 @@ import { parseMail } from "./mail-parser.js"
 import { getContent, getWorksheets, mapRecords } from './excel-parser.js';
 import { closeConnection, sendMail } from './mail-client.js';
 
-program.requiredOption("-s, --sheet <path>", "Excel sheet input path");
+program.option("-s, --sheet <path>", "Excel sheet input path");
+program.option("-t, --test", "Send test email to sender");
 program.requiredOption("-m, --mail <path>", "Mail input path");
 program.parse(process.argv);
 
 const options = program.opts();
 const sheetPath = options.sheet;
 const mailPath = options.mail;
+const test = options.test;
 
 // check if files exist
-if (!fs.existsSync(sheetPath) || !fs.existsSync(mailPath))
+if ((!test && !fs.existsSync(sheetPath)) || !fs.existsSync(mailPath))
     throw new Error("Cannot open files")
 
 // read mail content
 let mail = parseMail(mailPath);
 
 (async () => {
+
+    if (test) {
+        console.info(`Sending test email to ${process.env.FROM_MAIL}`);
+        await sendMail(process.env.FROM_MAIL, mail);
+        return;
+    }
 
     const worksheets = await getWorksheets(sheetPath);
 
@@ -47,16 +55,16 @@ let mail = parseMail(mailPath);
         // replace custom properties in subject
         for (const property in record)
             customMail.subject = customMail.subject.split(`[${property}]`).join(record[property]);
-        
+
         // replace custom properties in content
         for (const property in record)
             customMail.content = customMail.content.split(`[${property}]`).join(record[property]);
-        
+
         try {
             await sendMail(record.email, customMail)
         } catch (e) {
             console.log(`Error sending mail to ${record.email}`)
-         }
+        }
 
         console.timeEnd(`Sending mail to ${record.email}`)
 
